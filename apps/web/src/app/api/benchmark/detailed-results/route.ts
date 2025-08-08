@@ -6,6 +6,8 @@ import { etagFor } from "~/libs/hash";
 const TTL_MS = 4 * 60 * 60 * 1000;
 const MAX_TRADES_LIMIT = 5000;
 
+export const runtime = "nodejs";
+
 type DetailedRow = {
   chain: string;
   trading_pair: string;

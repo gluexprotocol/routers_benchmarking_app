@@ -6,6 +6,8 @@ import { winRatesQuery } from "~/validations/benchmark";
 
 const TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
+export const runtime = "nodejs";
+
 type Stats = {
   total_quotes: number;
   successful_quotes: number;

@@ -6,7 +6,7 @@ export const getSupabaseServer = () => {
 
   if (!url || !serviceKey) {
     throw new Error(
-      "Supabase env vars missing: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY"
+      "Supabase env vars missing: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY"
     );
   }
 

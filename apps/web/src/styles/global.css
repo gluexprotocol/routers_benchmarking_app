@@ -1,0 +1,65 @@
+@import "./base/reset.css";
+@import "./base/scrollbar.css";
+@import "./base/fonts.css";
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-verde: #02f994;
+  --color-salmon: #fc6977;
+  --color-secondary: #ececec;
+
+  --color-background: #ffffff;
+
+  --color-gradient-verde-from: #01cf7a;
+  --color-gradient-verde-to: #01693e;
+
+  --font-aux-mono: "Aux Mono", monospace;
+  --font-aeonik: "Aeonik", sans-serif;
+  --font-darker: "Darker Grotesque", sans-serif;
+
+  --color-excellent: #02f994;
+  --color-excellent-secondary: #01cf7a;
+  --color-very-good: #40e0d0;
+  --color-good: #4ade80;
+  --color-decent: #84cc16;
+  --color-warning: #fbbf24;
+  --color-caution: #fb923c;
+  --color-poor: #f97316;
+  --color-critical: #fc6977;
+  --color-severe: #dc2626;
+  --color-neutral: #9ca3af;
+  --color-disabled: #d1d5db;
+}
+
+@theme dark: {
+  --color-background: #111111;
+  --color-background-secondary: #1e1e1e;
+
+  --color-primary: #ececec;
+  --color-primary-shade: #e5e5e5;
+  --color-secondary: #6c6c6c;
+  --color-tertiary: #a1a1a1;
+  --color-quaternary: #bababa;
+
+  --color-green-primary: #01cf7a;
+  --color-green-secondary: #01b469;
+  --color-green-tertiary: #007A46;
+
+  --color-border-secondary: #373737;
+  --color-border-tertiary: #878787;
+
+  --color-excellent: #02f994;
+  --color-excellent-secondary: #01cf7a;
+  --color-very-good: #5eead4;
+  --color-good: #6ee7b7;
+  --color-decent: #bef264;
+  --color-warning: #fcd34d;
+  --color-caution: #fdba74;
+  --color-poor: #fb923c;
+  --color-critical: #fc6977;
+  --color-severe: #f87171;
+  --color-neutral: #9ca3af;
+  --color-disabled: #6b7280;
+}

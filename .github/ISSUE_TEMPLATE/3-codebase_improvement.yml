@@ -1,0 +1,40 @@
+name: 🛠️ Codebase Improvement
+description: Propose improvements to the codebase
+labels: ["refactor", "improvement"]
+title: "[IMPROVEMENT]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide details regarding your suggested codebase improvement. Make sure to describe the rationale and potential benefits
+
+  - type: textarea
+    id: improvement-description
+    attributes:
+      label: Description of the Improvement
+      description: Describe the suggested improvement and how it will benefit the project
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-areas
+    attributes:
+      label: Affected Components/Modules
+      description: List the components or modules that may be impacted by this change
+    validations:
+      required: false
+
+  - type: textarea
+    id: benefits
+    attributes:
+      label: Benefits
+      description: Explain how this improvement will enhance the codebase (eg - performance, readability, maintainability)
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-information
+    attributes:
+      label: Additional Information
+      description: |
+        Provide any further context, code snippets or related discussion links that may help evaluate the improvement

@@ -1,0 +1,33 @@
+name: ❓ Question
+description: Ask a question about the project
+labels: ["question"]
+title: "[QUESTION]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide your question below. Include details or context that might help others understand and address your query
+
+  - type: textarea
+    id: question-description
+    attributes:
+      label: Description of Your Question
+      description: Provide a clear and concise description of your question. Include any relevant details or context
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce (Optional)
+      description: If your question involves an issue or unexpected behavior, list the steps to reproduce it here
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-information
+    attributes:
+      label: Additional Information (Optional)
+      description: Add any extra context, screenshots or links that might be helpful in understanding your question
+    validations:
+      required: false

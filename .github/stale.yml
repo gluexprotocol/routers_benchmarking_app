@@ -1,0 +1,46 @@
+# Number of days of inactivity before an issue becomes stale
+daysUntilStale: 30
+
+# Number of days of inactivity before a stale issue is closed
+daysUntilClose: 7
+
+# Issues with these labels will never be considered stale
+exemptLabels:
+  - "🚀 Feature"
+  - "⚠️ Breaking Change"
+  - "✨ Enhancement"
+  - "🐞 Bug"
+  - "priority-critical"
+  - "priority-high"
+  - "major"
+
+# Label to use when marking an issue as stale
+staleLabel: stale
+
+# Comment to post when marking an issue as stale
+markComment: >
+  Hello there! 👋
+
+  This issue has been automatically marked as stale due to a lack of recent activity. 
+  We value your contributions, and we don't want to see this issue go unnoticed. 
+  However, to keep our project healthy and focused, we need to manage our open issues.
+
+  If this issue is still relevant to you and the community, please add a comment, 
+  update the issue, or remove the stale label. If no further activity occurs, this 
+  issue will be closed in 7 days 
+
+  Thank you for your understanding and contributions. Let's keep the momentum going! 🚀
+
+# Comment to post when closing a stale issue
+closeComment: >
+  Thank you for your contributions to this project. 
+
+  This issue has been automatically closed due to prolonged inactivity. 
+  While we strive to address all issues, we must prioritize active and 
+  current concerns to maintain the project's health and progress.
+
+  If you believe this issue is still relevant and should be addressed, 
+  please feel free to reopen it or create a new issue with updated information. 
+  Your input is valuable, and we appreciate your understanding and cooperation.
+
+  Let's continue to build and improve together! 🚀

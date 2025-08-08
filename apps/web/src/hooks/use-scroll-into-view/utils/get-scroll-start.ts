@@ -1,0 +1,21 @@
+interface ScrollStartParams {
+  axis: "x" | "y"
+  parent?: HTMLElement | null
+}
+
+export const getScrollStart = ({ axis, parent }: ScrollStartParams): number => {
+  if (!parent && typeof document === "undefined") {
+    return 0
+  }
+
+  const method = axis === "y" ? "scrollTop" : "scrollLeft"
+
+  if (parent) {
+    return parent[method]
+  }
+
+  const { body, documentElement } = document
+
+  // While one of it has a value the second is equal 0
+  return body[method] + documentElement[method]
+}

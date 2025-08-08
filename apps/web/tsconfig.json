@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    // ——————————————————————————————————————————————————————————————————————
+    // Module
+    // ——————————————————————————————————————————————————————————————————————
+    "target": "es2017",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    // ——————————————————————————————————————————————————————————————————————
+    // Strictness
+    // ——————————————————————————————————————————————————————————————————————
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowUnreachableCode": false,
+    // ——————————————————————————————————————————————————————————————————————
+    // Emit & Build
+    // ——————————————————————————————————————————————————————————————————————
+    "incremental": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "outDir": "out",
+    "sourceMap": true,
+    // ——————————————————————————————————————————————————————————————————————
+    // Interop
+    // ——————————————————————————————————————————————————————————————————————
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    // ——————————————————————————————————————————————————————————————————————
+    // JS support
+    // ——————————————————————————————————————————————————————————————————————
+    "allowJs": true,
+    "checkJs": true,
+    // ——————————————————————————————————————————————————————————————————————
+    // Path Aliases
+    // ——————————————————————————————————————————————————————————————————————
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["src/*"],
+      "~/public/*": ["public/*"]
+    },
+    // ——————————————————————————————————————————————————————————————————————
+    // Next.js Plugin
+    // ——————————————————————————————————————————————————————————————————————
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "lib": ["dom", "dom.iterable", "esnext"]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".storybook/**/*.ts", ".next/types/**/*.ts"],
+  "exclude": ["out/", "node_modules/", "**/*.spec.ts", "**/*.e2e.ts"]
+}

@@ -337,8 +337,14 @@ export const GET = async (req: NextRequest) => {
   } catch (e) {
     console.error("detailed-results error:", e);
     return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { error: "Internal Server Error", stack: e },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store",
+          "x-debug": String((e as any)?.message ?? "unknown"),
+        },
+      }
     );
   }
 };

@@ -1,7 +1,9 @@
 import concurrent.futures
 import requests
 import time
+
 from datetime import datetime
+from decimal import Decimal, getcontext, ROUND_DOWN
 
 from ..core.database import get_db
 from ..data.chain import CHAIN_CONFIG
@@ -10,6 +12,8 @@ from ..models import BenchmarkRun, TradeResult, ProviderResult
 
 from ..providers.gluex import GluexProvider
 from ..providers.liqdswap import LiqdswapProvider
+
+getcontext(precision=28)
 
 # token-decimals mapping for quick lookup
 TOKEN_DECIMALS = {}
@@ -403,6 +407,12 @@ def run_benchmark_single_chain(chain_id: str, benchmark_run, db_session, pairs=N
                 f"💾 DEBUG: Creating TradeResult with symbols: {input_token_symbol} -> {output_token_symbol}"
             )
 
+            human_amount = Decimal(token_amount) / \
+                (Decimal(10) ** input_decimals)
+
+            formatted_amount = human_amount.quantize(
+                Decimal("0.00000001"), rounding=ROUND_DOWN)
+
             # create trade result object but don't insert yet
             trade_result = TradeResult(
                 run_id=benchmark_run.id,
@@ -413,8 +423,7 @@ def run_benchmark_single_chain(chain_id: str, benchmark_run, db_session, pairs=N
                 from_token_symbol=input_token_symbol,
                 to_token_symbol=output_token_symbol,
                 amount_usd=amount["usd"],
-                input_amount=str(
-                    int((int(token_amount) / (10 ** input_decimals))))
+                input_amount=str(formatted_amount)
             )
 
             print(

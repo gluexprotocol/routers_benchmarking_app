@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { writeFileSync } from "node:fs";
 import { getCache, makeKey, setCache } from "~/libs/cache";
 import { etagFor } from "~/libs/hash";
 import { getSupabaseServer } from "~/libs/supabase";
 import { winRatesQuery } from "~/validations/benchmark";
 
-const TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
-
 export const runtime = "nodejs";
+
+const TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 type Stats = {
   total_quotes: number;
@@ -245,6 +246,17 @@ export const GET = async (req: NextRequest) => {
         arr.sort((a, b) => b.output - a.output);
 
         const winner = arr[0]?.provider;
+
+        // Winner only if the provider has better quote than second best provider (if 1st and 2nd has same - then no one wins)
+        if (arr.length > 1 && arr[0]?.output === arr[1]?.output) {
+          continue;
+        }
+
+        // If winner has no valid quote - we skip
+        if (!arr[0]?.output) {
+          continue;
+        }
+
         if (!winner) {
           continue;
         }

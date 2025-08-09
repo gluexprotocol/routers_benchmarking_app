@@ -22,25 +22,31 @@ const fmtMoney = new Intl.NumberFormat(undefined, {
   currencyDisplay: "narrowSymbol",
 });
 
-const fmtCompact = new Intl.NumberFormat(undefined, {
-  notation: "compact",
-  maximumFractionDigits: 2,
-});
-
 const trimZeros = (s: string) =>
   s.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 
-const formatOutput = (v: number | null | undefined): string => {
+const formatCompactForHeader = (v: number | null | undefined): string => {
   if (typeof v !== "number" || !Number.isFinite(v)) return "N/A";
   const av = Math.abs(v);
   if (av > 0 && av < 1e-6) return "~0.000001";
   if (av < 1) return trimZeros(v.toFixed(6));
   if (av < 1_000) return trimZeros(v.toFixed(2));
-  return fmtCompact.format(v);
+  // for header readability we keep compact if large (not for the cards)
+  return new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(v);
 };
 
 const formatTime = (v: number | null | undefined) =>
   typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(3)}s` : "—";
+
+// Show full value (no truncation) on the card body
+const fullNumber = (v: number | null | undefined) => {
+  if (typeof v !== "number" || !Number.isFinite(v)) return "N/A";
+  // Up to 18 fractional digits; avoids scientific unless very large/small
+  return v.toLocaleString(undefined, { maximumFractionDigits: 18 });
+};
 
 export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
   open,
@@ -49,7 +55,6 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
   providers,
 }) => {
   const [sortMode, setSortMode] = React.useState<SortMode>("best");
-
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   React.useEffect(() => {
@@ -72,7 +77,8 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
         icon: p.icon,
         time: r?.time ?? null,
         output: r?.output ?? null,
-        isWinner:
+        // don't trust trade.winner for badges here; we recompute strictly below
+        isWinnerMeta:
           trade.winner &&
           (trade.winner === p.name ||
             trade.winner === p.id ||
@@ -81,18 +87,26 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
     });
   }, [trade, providers]);
 
+  // Strict single winner by output
   const bestOutput = React.useMemo(() => {
     const outs = rows
       .map((r) => r.output)
-      .filter((n): n is number => typeof n === "number");
-    return outs.length ? Math.max(...outs) : null;
+      .filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+    if (!outs.length) return { max: null as number | null, unique: false };
+    const max = Math.max(...outs);
+    const count = outs.filter((o) => Math.abs(o - max) < 1e-12).length;
+    return { max, unique: count === 1 };
   }, [rows]);
 
+  // Strict single winner by time (fastest)
   const bestTime = React.useMemo(() => {
     const ts = rows
       .map((r) => r.time)
-      .filter((n): n is number => typeof n === "number");
-    return ts.length ? Math.min(...ts) : null;
+      .filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+    if (!ts.length) return { min: null as number | null, unique: false };
+    const min = Math.min(...ts);
+    const count = ts.filter((t) => Math.abs(t - min) < 1e-12).length;
+    return { min, unique: count === 1 };
   }, [rows]);
 
   const sorted = React.useMemo(() => {
@@ -130,7 +144,6 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
     visible: { opacity: 1, scale: 1, y: 0 },
     exit: { opacity: 0, scale: 0.98, y: 8 },
   };
-
   const panelMobile = {
     hidden: { y: "120%" },
     visible: { y: 40 },
@@ -182,7 +195,8 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
                     {trade.fromToken} → {trade.toToken}
                   </h3>
                   <div className="text-tertiary text-xs md:text-sm">
-                    Input: {formatOutput(Number(trade.input_amount ?? 0))} •
+                    Input:{" "}
+                    {formatCompactForHeader(Number(trade.input_amount ?? 0))} •
                     USD: {fmtMoney.format(Number(trade.amount || 0))}
                   </div>
                 </div>
@@ -225,14 +239,17 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
               {/* provider cards grid */}
               <div className="gap-3 grid grid-cols-1 sm:grid-cols-2 mt-4 px-5 md:px-6 pb-5">
                 {sorted.map((row, idx) => {
-                  const isBestOut =
+                  const isStrictBestOut =
                     typeof row.output === "number" &&
-                    bestOutput != null &&
-                    Math.abs(row.output - bestOutput) < 1e-9;
-                  const isFastest =
+                    bestOutput.max != null &&
+                    bestOutput.unique &&
+                    Math.abs(row.output - bestOutput.max) < 1e-12;
+
+                  const isStrictFastest =
                     typeof row.time === "number" &&
-                    bestTime != null &&
-                    Math.abs(row.time - bestTime) < 1e-9;
+                    bestTime.min != null &&
+                    bestTime.unique &&
+                    Math.abs(row.time - bestTime.min) < 1e-12;
 
                   return (
                     <motion.div
@@ -264,24 +281,18 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
                             <div className="font-semibold text-primary text-xl truncate">
                               {row.name}
                             </div>
-                            <div className="text-secondary text-xs">
-                              {row.isWinner ? "Best Quote" : "Quote"}
-                            </div>
+                            <div className="text-secondary text-xs">Quote</div>
                           </div>
                         </div>
 
                         <div className="flex flex-wrap justify-end items-center gap-1">
-                          {row.isWinner && (
-                            <span className="px-2 py-0.5 border border-border-secondary rounded-full text-[10px]">
-                              Winner
-                            </span>
-                          )}
-                          {isBestOut && (
+                          {/* Only show if strict single winner */}
+                          {isStrictBestOut && (
                             <span className="px-2 py-0.5 border border-emerald-400 rounded-full text-[10px] text-emerald-300">
                               Best Return
                             </span>
                           )}
-                          {isFastest && (
+                          {isStrictFastest && (
                             <span className="px-2 py-0.5 border border-blue-300 rounded-full text-[10px] text-blue-200">
                               Fastest
                             </span>
@@ -300,15 +311,18 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
                           <div
                             className={clsx(
                               "font-semibold",
-                              isBestOut ? "text-[#01CF7A]" : "text-primary"
+                              isStrictBestOut
+                                ? "text-[#01CF7A]"
+                                : "text-primary"
                             )}
                             title={
                               row.output == null
                                 ? "No quote"
-                                : String(row.output)
+                                : fullNumber(row.output)
                             }
                           >
-                            {formatOutput(row.output)}
+                            {/* show full value (no truncation) */}
+                            {fullNumber(row.output)}
                           </div>
                         </div>
                         <div className="text-right">
@@ -316,7 +330,7 @@ export const TradeDetailsModal: React.FC<TradeDetailsModalProps> = ({
                           <div
                             className={clsx(
                               "font-semibold",
-                              isFastest
+                              isStrictFastest
                                 ? "text-[#01CF7A]"
                                 : typeof row.time === "number" && row.time > 6
                                 ? "text-[#EF4444]"

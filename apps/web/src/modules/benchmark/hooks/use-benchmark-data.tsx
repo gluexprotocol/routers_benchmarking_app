@@ -73,6 +73,9 @@ export const useBenchmarkData = (selectedChain: string) => {
 
     const [win, det] = await Promise.all([winPromise, detPromise]);
     rawRef.current = { win: win.data, det: det.data };
+
+    console.log({ win: win.data, det: det.data });
+
     return { win: win.data, det: det.data };
   }, []);
 

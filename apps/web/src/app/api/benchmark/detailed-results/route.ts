@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "~/libs/supabase";
 import { getCache, makeKey, setCache } from "~/libs/cache";
 import { etagFor } from "~/libs/hash";
+import { writeFileSync } from "node:fs";
 
 const TTL_MS = 4 * 60 * 60 * 1000;
 const MAX_TRADES_LIMIT = 5000;
@@ -178,9 +179,12 @@ export const GET = async (req: NextRequest) => {
         });
       }
 
+      const tradeIds = trades.map((t) => t.id);
+
       const { data: providerResults, error: provErr } = await supabase
         .from("provider_results")
-        .select("trade_id, provider, output_amount, elapsed_time, status_code");
+        .select("trade_id, provider, output_amount, elapsed_time, status_code")
+        .in("trade_id", tradeIds);
 
       if (provErr) {
         throw provErr;

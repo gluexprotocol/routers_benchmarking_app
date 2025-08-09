@@ -29,7 +29,7 @@ const fmtMoney = new Intl.NumberFormat(undefined, {
   currencyDisplay: "narrowSymbol",
 });
 
-const fmtNum0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const fmtNum0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
 
 export const DetailedResultsTable = memo<DetailedResultsTableProps>(
   ({ tradeResults, providers, onRetry, selectedChain }) => {
@@ -39,8 +39,6 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
     const [selected, setSelected] = useState<TradeResult | null>(null);
     const [open, setOpen] = useState(false);
 
-    const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-
     const hasRows = tradeResults && tradeResults.length > 0;
     const hasProviders = providers && providers.length > 0;
 
@@ -48,7 +46,6 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
       setSelected(row);
       setOpen(true);
     };
-
     const closeModal = () => setOpen(false);
 
     const sortedResults = useMemo(() => {
@@ -81,14 +78,6 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
         setSortField(field);
         setSortDirection("desc");
       }
-    };
-
-    const toggleRowExpansion = (rowId: string) => {
-      setExpandedRows((prev) => {
-        const next = new Set(prev);
-        next.has(rowId) ? next.delete(rowId) : next.add(rowId);
-        return next;
-      });
     };
 
     const SortButton = ({
@@ -124,16 +113,18 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
     const formatOutput = (v: number | null | undefined): string => {
       if (typeof v !== "number" || !Number.isFinite(v)) return "N/A";
       const av = Math.abs(v);
-      if (av > 0 && av < 1e-6) {
-        return "~0.000001";
-      }
-      if (av < 1) {
-        return trimZeros(v.toFixed(6));
-      }
-      if (av < 1_000) {
-        return trimZeros(v.toFixed(2));
-      }
+      if (av > 0 && av < 1e-6) return "~0.000001";
+      if (av < 1) return trimZeros(v.toFixed(6));
+      if (av < 1_000) return trimZeros(v.toFixed(2));
       return fmtNum0.format(v);
+    };
+
+    const displayResolution = (v: number) => {
+      const av = Math.abs(v);
+      if (av > 0 && av < 1e-6) return 1e-6;
+      if (av < 1) return 1e-6; // 6 dp
+      if (av < 1_000) return 1e-2; // 2 dp
+      return 1e-4; // up to 4 dp
     };
 
     if (!hasRows || !hasProviders) {
@@ -157,10 +148,6 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
           <div className="bg-background-secondary p-8 border border-border-secondary rounded-xl text-center">
             <div className="font-semibold text-primary text-lg">
               No trade data available
-            </div>
-            <div className="mt-1 text-secondary text-sm">
-              A benchmark run may be in progress or data isn’t ready yet. Please
-              check again in ~10 minutes.
             </div>
             {onRetry && (
               <button
@@ -230,10 +217,6 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                     </th>
                   ))}
 
-                  {/* <th className="px-5 py-4">
-                  <SortButton field="outputDiff">Output Diff</SortButton>
-                </th> */}
-
                   <th className="px-5 py-4">
                     <SortButton field="winner">Winner</SortButton>
                   </th>
@@ -242,24 +225,51 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
 
               <tbody className="text-tertiary text-sm">
                 {sortedResults.map((result, index) => {
-                  // Per-row best/worst computations
-                  const times = providers
+                  // Times (best = lowest), unique best only
+                  const EPS = 1e-12;
+
+                  const timesRaw = providers
                     .map((p) => result.providers[p.key]?.time)
                     .filter(
                       (v): v is number =>
                         typeof v === "number" && Number.isFinite(v)
                     );
-                  const minTime = times.length ? Math.min(...times) : null;
-
-                  const outputs = providers
-                    .map((p) => result.providers[p.key]?.output)
-                    .filter(
-                      (v): v is number =>
-                        typeof v === "number" && Number.isFinite(v)
-                    );
-                  const maxOutput = outputs.length
-                    ? Math.max(...outputs)
+                  const minTime = timesRaw.length
+                    ? Math.min(...timesRaw)
                     : null;
+                  const numFastest =
+                    minTime == null
+                      ? 0
+                      : timesRaw.filter((t) => Math.abs(t - minTime) < EPS)
+                          .length;
+
+                  // RAW outputs (best = highest), with epsilon tolerance
+                  const outputsRawAll = providers.map(
+                    (p) => result.providers[p.key]?.output ?? null
+                  );
+                  const outputsRaw = outputsRawAll.filter(
+                    (v): v is number =>
+                      typeof v === "number" && Number.isFinite(v)
+                  );
+                  const maxRaw = outputsRaw.length
+                    ? Math.max(...outputsRaw)
+                    : null;
+
+                  const numTopRaw =
+                    maxRaw == null
+                      ? 0
+                      : outputsRaw.filter((v) => Math.abs(v - maxRaw) < EPS)
+                          .length;
+
+                  // second best raw (for +Δ)
+                  let secondBestRaw: number | undefined;
+                  if (outputsRaw.length >= 2) {
+                    const sortedRaw = [...outputsRaw].sort((a, b) => b - a);
+                    const idx = sortedRaw.findIndex(
+                      (v) => Math.abs(v - sortedRaw[0]!) >= EPS
+                    );
+                    secondBestRaw = idx === -1 ? undefined : sortedRaw[idx];
+                  }
 
                   return (
                     <motion.tr
@@ -305,16 +315,18 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                       {/* Times */}
                       {providers.map((provider) => {
                         const t = result.providers[provider.key]?.time ?? null;
-                        const isBest =
+                        const isUniqueFastest =
+                          numFastest === 1 &&
                           minTime != null &&
                           t != null &&
-                          Math.abs(t - minTime) < 1e-9;
+                          Math.abs(t - minTime) < EPS;
+
                         const isSlow = typeof t === "number" && t > 6;
 
                         const timeClass =
                           t == null
                             ? "text-xs"
-                            : isBest
+                            : isUniqueFastest
                             ? "text-[#01CF7A]"
                             : isSlow
                             ? "text-[#EF4444]"
@@ -331,61 +343,73 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                         );
                       })}
 
-                      {/* Outputs */}
                       {providers.map((provider) => {
                         const o =
                           result.providers[provider.key]?.output ?? null;
-                        const isBest =
-                          maxOutput != null &&
+
+                        const isUniqueRawBest =
+                          numTopRaw === 1 &&
+                          maxRaw != null &&
                           o != null &&
-                          Math.abs(o - maxOutput) < 1e-9;
+                          Math.abs(o - maxRaw) < EPS;
+
+                        const isRawTiedBest =
+                          numTopRaw > 1 &&
+                          maxRaw != null &&
+                          o != null &&
+                          Math.abs(o - maxRaw) < EPS;
 
                         const outClass =
                           o == null
                             ? "text-xs"
-                            : isBest
+                            : isUniqueRawBest || isRawTiedBest
                             ? "text-[#01CF7A]"
                             : "";
+
+                        const showDeltaBadge =
+                          isUniqueRawBest &&
+                          secondBestRaw != null &&
+                          maxRaw != null;
+
+                        const deltaRaw =
+                          showDeltaBadge && secondBestRaw != null
+                            ? maxRaw - secondBestRaw
+                            : 0;
 
                         return (
                           <td
                             key={`${result.id}-${provider.id}-output`}
                             className={`px-5 py-2.5 text-center ${outClass}`}
-                            title={o == null ? "No quote" : fmtNum0.format(o)}
+                            title={
+                              o == null
+                                ? "No quote"
+                                : o.toLocaleString(undefined, {
+                                    maximumFractionDigits: 18,
+                                  })
+                            }
                           >
-                            {formatOutput(o)}
+                            <div className="flex flex-col items-center leading-tight">
+                              <span className="tabular-nums">
+                                {formatOutput(o)}
+                              </span>
+
+                              {showDeltaBadge && deltaRaw > 0 ? (
+                                <span className="opacity-80 mt-0.5 tabular-nums text-[8px]">
+                                  (+{formatOutput(deltaRaw)})
+                                </span>
+                              ) : (
+                                <span className="opacity-0 mt-0.5 text-[8px] select-none">
+                                  (—)
+                                </span>
+                              )}
+                            </div>
                           </td>
                         );
                       })}
 
-                      {/* Output Diff */}
-                      {/* <td className="px-5 py-2.5 text-center">
-                      <span
-                        className={clsx(
-                          result.outputDiff && result.outputDiff > 0
-                            ? "text-[#01CF7A]"
-                            : result.outputDiff === 0 ||
-                              result.outputDiff == null
-                            ? "text-xs"
-                            : "text-[#EF4444]"
-                        )}
-                        title={
-                          result.outputDiff != null
-                            ? `${(result.outputDiff * 100).toFixed(
-                                result.outputDiff * 100 > 0 ? 2 : 4
-                              )}%`
-                            : "—"
-                        }
-                      >
-                        {result.outputDiff === 0
-                          ? "—"
-                          : formatPct(result.outputDiff)}
-                      </span>
-                    </td> */}
-
-                      {/* Winner */}
+                      {/* Winner chip — only if single RAW winner */}
                       <td className="px-6 py-2.5">
-                        {result.winner === "All Error" ? (
+                        {result.winner === "All Error" || numTopRaw !== 1 ? (
                           <></>
                         ) : result.winner === "GlueX" ? (
                           <span className="px-2 py-1 border border-green-tertiary rounded-xl font-medium text-green-primary text-xs">

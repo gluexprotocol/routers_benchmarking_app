@@ -13,7 +13,7 @@ from ..models import BenchmarkRun, TradeResult, ProviderResult
 from ..providers.gluex import GluexProvider
 from ..providers.liqdswap import LiqdswapProvider
 
-getcontext(precision=28)
+getcontext().prec = 28
 
 # token-decimals mapping for quick lookup
 TOKEN_DECIMALS = {}

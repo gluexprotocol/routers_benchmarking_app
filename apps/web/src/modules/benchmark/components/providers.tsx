@@ -4,6 +4,13 @@ import { memo, useMemo } from "react";
 import Image from "next/image";
 import clsx from "clsx";
 import { motion } from "framer-motion";
+import { Info } from "lucide-react";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 
 interface ProvidersGridProps {
   providers: Provider[];
@@ -142,24 +149,82 @@ export const ProviderCard = memo<ProviderCardProps>(
 
           <div className="gap-2 grid grid-cols-2">
             {/* Win Rate */}
-            <div className="space-y-0.5">
-              <div className="text-secondary text-sm">Win Rate</div>
-              <div className={clsx("font-bold text-primary text-xl")}>
+            <div className="flex flex-col space-y-0.5">
+              <div className="flex items-center gap-1 text-secondary text-sm">
+                Win Rate
+                <Tooltip placement="top" delay={80}>
+                  <TooltipTrigger asChild>
+                    <span
+                      aria-label="What is Win Rate?"
+                      className="inline-flex align-middle cursor-pointer"
+                    >
+                      <Info className="w-4 h-4 text-secondary" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>
+                      Shows how often {provider.name} gave the best quote for a
+                      trade
+                    </p>
+                    <p className="mt-1 text-muted-foreground text-xs">
+                      Note: if two providers give the same best quote, neither
+                      is counted as a winner so totals may not reach 100%
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="font-bold text-primary text-xl">
                 {pct(winPct)}
               </div>
             </div>
 
             {/* Participation */}
-            <div className="space-y-0.5">
-              <div className="text-secondary text-sm">Participation</div>
-              <div className={clsx("font-bold text-primary text-xl")}>
+            <div className="flex flex-col space-y-0.5">
+              <div className="flex items-center gap-1 text-secondary text-sm">
+                Participation
+                <Tooltip placement="top" delay={80}>
+                  <TooltipTrigger asChild>
+                    <span
+                      aria-label="What is Participation?"
+                      className="inline-flex align-middle cursor-pointer"
+                    >
+                      <Info className="w-4 h-4 text-secondary" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>
+                      Shows how often {provider.name} successfully took part in
+                      trades compared to all trades they were involved in
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <div className="font-bold text-primary text-xl">
                 {pct(partPct)}
               </div>
             </div>
 
             {/* Successful Trades */}
             <div className="space-y-0.5">
-              <div className="text-secondary text-sm">Successful Trades</div>
+              <div className="flex items-center gap-1 text-secondary text-sm">
+                Successful Trades
+                <Tooltip placement="top" delay={80}>
+                  <TooltipTrigger asChild>
+                    <span
+                      aria-label="What are Successful Trades?"
+                      className="inline-flex align-middle cursor-pointer"
+                    >
+                      <Info className="w-4 h-4 text-secondary" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>
+                      Number of trades {provider.name} successfully provided a
+                      quote compared to total trades they attempted
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className="font-bold text-primary text-xl">
                 {provider.successfulTrades} / {provider.totalTrades}
               </div>
@@ -167,7 +232,25 @@ export const ProviderCard = memo<ProviderCardProps>(
 
             {/* Avg Response */}
             <div className="space-y-0.5">
-              <div className="text-secondary text-sm">Avg Response</div>
+              <div className="flex items-center gap-1 text-secondary text-sm">
+                Avg Response
+                <Tooltip placement="top" delay={80}>
+                  <TooltipTrigger asChild>
+                    <span
+                      aria-label="What is Avg Response?"
+                      className="inline-flex align-middle cursor-pointer"
+                    >
+                      <Info className="w-4 h-4 text-secondary" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>
+                      Average time {provider.name} took to respond with a quote
+                      (considered only for successful quotes)
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className={clsx("font-bold text-primary text-xl")}>
                 {sec(provider.avgResponse)}
               </div>

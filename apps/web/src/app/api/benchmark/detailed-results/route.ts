@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "~/libs/supabase";
 import { getCache, makeKey, setCache } from "~/libs/cache";
 import { etagFor } from "~/libs/hash";
-import { writeFileSync } from "node:fs";
 
 const TTL_MS = 4 * 60 * 60 * 1000;
 const MAX_TRADES_LIMIT = 5000;
+const SERVER_PAGE_SIZE = 1000; // conservative cap for PostgREST page size
+const PROVIDER_ID_CHUNK = 300; // number of trade_ids per .in(...) batch
 
 export const runtime = "nodejs";
 
@@ -50,13 +51,87 @@ const representationTag = (
   return etagFor({ baseTag, page, page_size, all: all ?? null });
 };
 
+function chunk<T>(arr: T[], size: number) {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Page through trade_results to avoid server caps.
+ */
+async function fetchAllTrades(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  runId: number
+) {
+  const all: any[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + SERVER_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("trade_results")
+      .select(
+        "id, chain, pair, from_token, to_token, from_token_symbol, to_token_symbol, amount_usd, input_amount"
+      )
+      .eq("run_id", runId)
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) throw error;
+
+    const batch = data ?? [];
+    all.push(...batch);
+
+    if (batch.length < SERVER_PAGE_SIZE) break; // last page
+    from += SERVER_PAGE_SIZE;
+  }
+
+  return all;
+}
+
+/**
+ * For a given list of trade_ids, fetch provider_results in small .in(...) chunks,
+ * and, within each chunk, use .range() paging in case rows exceed server caps.
+ */
+async function fetchAllProviderResults(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  tradeIds: number[]
+) {
+  const results: any[] = [];
+  const idChunks = chunk(tradeIds, PROVIDER_ID_CHUNK);
+
+  for (const ids of idChunks) {
+    let from = 0;
+    while (true) {
+      const to = from + SERVER_PAGE_SIZE - 1;
+
+      const { data, error } = await supabase
+        .from("provider_results")
+        .select("trade_id, provider, output_amount, elapsed_time, status_code")
+        .in("trade_id", ids)
+        .order("trade_id", { ascending: true })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const batch = data ?? [];
+      results.push(...batch);
+
+      if (batch.length < SERVER_PAGE_SIZE) break;
+      from += SERVER_PAGE_SIZE;
+    }
+  }
+
+  return results;
+}
+
 export const GET = async (req: NextRequest) => {
   try {
     const url = new URL(req.url);
     const page = Number(url.searchParams.get("page") || "1");
     const page_size = Number(url.searchParams.get("page_size") || "50");
     const all = url.searchParams.get("all");
-
     const limit = Number(
       url.searchParams.get("limit") || `${MAX_TRADES_LIMIT}`
     );
@@ -70,7 +145,7 @@ export const GET = async (req: NextRequest) => {
 
     const supabase = getSupabaseServer();
 
-    // determine latest run
+    // latest run
     const { data: latest, error: latestErr } = await supabase
       .from("benchmark_runs")
       .select("id,start_time")
@@ -78,9 +153,7 @@ export const GET = async (req: NextRequest) => {
       .limit(1)
       .maybeSingle();
 
-    if (latestErr) {
-      throw latestErr;
-    }
+    if (latestErr) throw latestErr;
 
     if (!latest) {
       return NextResponse.json(
@@ -103,19 +176,8 @@ export const GET = async (req: NextRequest) => {
       base = baseCached.value;
       baseTag = baseCached.etag;
     } else {
-      // fetch all trades for this run
-      const { data: trades, error: tradesErr } = await supabase
-        .from("trade_results")
-        .select(
-          "id, chain, pair, from_token, to_token, from_token_symbol, to_token_symbol, amount_usd, input_amount"
-        )
-        .eq("run_id", runId)
-        .order("id", { ascending: true });
-
-      if (tradesErr) {
-        throw tradesErr;
-      }
-
+      // fetch all trades for this run with pagination
+      const trades = await fetchAllTrades(supabase, runId);
       const ids = trades.map((t) => t.id);
 
       if (ids.length === 0) {
@@ -179,22 +241,16 @@ export const GET = async (req: NextRequest) => {
         });
       }
 
-      const tradeIds = trades.map((t) => t.id);
+      // fetch all provider rows for those trades (chunked + paged)
+      const providerResults = await fetchAllProviderResults(supabase, ids);
 
-      const { data: providerResults, error: provErr } = await supabase
-        .from("provider_results")
-        .select("trade_id, provider, output_amount, elapsed_time, status_code")
-        .in("trade_id", tradeIds);
-
-      if (provErr) {
-        throw provErr;
-      }
-
+      // index provider results by trade_id
       const byTrade: Record<number, any[]> = {};
-      for (const pr of providerResults ?? []) {
+      for (const pr of providerResults) {
         (byTrade[pr.trade_id] ??= []).push(pr);
       }
 
+      // build rows
       const rows: DetailedRow[] = trades.map((trade) => {
         const record: any = {
           chain: trade.chain,
@@ -234,9 +290,7 @@ export const GET = async (req: NextRequest) => {
             provider_key_map[r.provider?.toLowerCase?.()] ??
             r.provider?.toLowerCase?.();
 
-          if (!key) {
-            continue;
-          }
+          if (!key) continue;
 
           record[`${key}_time`] = r.elapsed_time ?? null;
 
@@ -267,7 +321,6 @@ export const GET = async (req: NextRequest) => {
 
       base = { run_id: runId, run_date: runDate, rows };
       baseTag = etagFor(base);
-
       setCache(baseKey, base, TTL_MS, baseTag);
     }
 

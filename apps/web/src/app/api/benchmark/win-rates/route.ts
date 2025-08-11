@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFileSync } from "node:fs";
 import { getCache, makeKey, setCache } from "~/libs/cache";
 import { etagFor } from "~/libs/hash";
 import { getSupabaseServer } from "~/libs/supabase";
@@ -8,6 +7,8 @@ import { winRatesQuery } from "~/validations/benchmark";
 export const runtime = "nodejs";
 
 const TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+const SERVER_PAGE_SIZE = 1000; // stay under PostgREST caps
+const PROVIDER_ID_CHUNK = 300; // trade_ids per .in(...) batch
 
 type Stats = {
   total_quotes: number;
@@ -49,6 +50,117 @@ const representationTag = (
   return etagFor({ baseTag, chain: chain ?? null, mode: mode ?? null });
 };
 
+function chunk<T>(arr: T[], size: number) {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function fetchRunMeta(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  runId?: number | null
+) {
+  if (runId) {
+    const { data, error } = await supabase
+      .from("benchmark_runs")
+      .select("id,start_time")
+      .eq("id", runId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new Error(`Run ${runId} not found`);
+    return {
+      id: data.id as number,
+      start_time: (data.start_time ?? null) as string | null,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("benchmark_runs")
+    .select("id,start_time")
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error("No benchmark runs found");
+  return {
+    id: data.id as number,
+    start_time: (data.start_time ?? null) as string | null,
+  };
+}
+
+/** Page through trade_results to avoid server caps. */
+async function fetchAllTrades(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  runId: number
+) {
+  const all: { id: number; chain: string }[] = [];
+  let from = 0;
+
+  while (true) {
+    const to = from + SERVER_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("trade_results")
+      .select("id,chain")
+      .eq("run_id", runId)
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) throw error;
+
+    const batch = (data ?? []) as { id: number; chain: string }[];
+    all.push(...batch);
+
+    if (batch.length < SERVER_PAGE_SIZE) break; // last page fetched
+    from += SERVER_PAGE_SIZE;
+  }
+
+  return all;
+}
+
+/**
+ * Chunk trade_ids for .in(...), and within each chunk, paginate with .range()
+ * so we never exceed server row caps.
+ */
+async function fetchAllProviderResults(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  tradeIds: number[]
+) {
+  const results: {
+    provider: string;
+    output_amount: string | null;
+    elapsed_time: number | null;
+    status_code: number | null;
+    trade_id: number;
+  }[] = [];
+
+  const idChunks = chunk(tradeIds, PROVIDER_ID_CHUNK);
+
+  for (const ids of idChunks) {
+    let from = 0;
+    while (true) {
+      const to = from + SERVER_PAGE_SIZE - 1;
+
+      const { data, error } = await supabase
+        .from("provider_results")
+        .select("provider, output_amount, elapsed_time, status_code, trade_id")
+        .in("trade_id", ids)
+        .order("trade_id", { ascending: true })
+        .range(from, to);
+
+      if (error) throw error;
+
+      const batch = (data ?? []) as any[];
+      results.push(...batch);
+
+      if (batch.length < SERVER_PAGE_SIZE) break;
+      from += SERVER_PAGE_SIZE;
+    }
+  }
+
+  return results;
+}
+
 export const GET = async (req: NextRequest) => {
   try {
     const url = new URL(req.url);
@@ -65,35 +177,20 @@ export const GET = async (req: NextRequest) => {
 
     const { chain, run_id } = parsed.data;
     const mode = url.searchParams.get("mode");
-
     const supabase = getSupabaseServer();
 
-    // determine run
-    let targetRunId = run_id;
-    let runDate: string | null = null;
-
-    if (!targetRunId) {
-      const { data: latest, error: latestErr } = await supabase
-        .from("benchmark_runs")
-        .select("id,start_time")
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (latestErr) {
-        throw latestErr;
-      }
-
-      if (!latest) {
-        return NextResponse.json(
-          { error: "No benchmark runs found" },
-          { status: 404, headers: { "Cache-Control": "no-store" } }
-        );
-      }
-
-      targetRunId = latest.id;
-      runDate = latest.start_time ?? null;
+    // resolve run (latest if not provided)
+    let runMeta;
+    try {
+      runMeta = await fetchRunMeta(supabase, run_id ?? null);
+    } catch (e) {
+      return NextResponse.json(
+        { error: (e as Error).message },
+        { status: 404, headers: { "Cache-Control": "no-store" } }
+      );
     }
+    const targetRunId = runMeta.id;
+    const runDate = runMeta.start_time ?? null;
 
     // precompute base once per run
     const baseCacheKey = makeKey("win-rates:base", { run_id: targetRunId });
@@ -106,19 +203,12 @@ export const GET = async (req: NextRequest) => {
       base = baseCached.value;
       baseTag = baseCached.etag;
     } else {
-      // fetch trades for this run
-      const { data: trades, error: tradesErr } = await supabase
-        .from("trade_results")
-        .select("id,chain")
-        .eq("run_id", targetRunId);
-
-      if (tradesErr) {
-        throw tradesErr;
-      }
+      // fetch trades for this run (paged)
+      const trades = await fetchAllTrades(supabase, targetRunId);
 
       if (!trades || trades.length === 0) {
         const emptyBase: BaseWinRates = {
-          run_id: targetRunId!,
+          run_id: targetRunId,
           run_date: runDate,
           overall: {},
           total_trades_analyzed: 0,
@@ -176,14 +266,8 @@ export const GET = async (req: NextRequest) => {
         trades.map((t) => [t.id as number, t.chain as string])
       );
 
-      const { data: results, error: resErr } = await supabase
-        .from("provider_results")
-        .select("provider, output_amount, elapsed_time, status_code, trade_id")
-        .in("trade_id", tradeIds);
-
-      if (resErr) {
-        throw resErr;
-      }
+      // fetch provider_results for those trades (chunked + paged)
+      const results = await fetchAllProviderResults(supabase, tradeIds);
 
       const overallStats: Record<string, Stats> = {};
       const perChainStats: Record<string, Record<string, Stats>> = {};
@@ -203,7 +287,6 @@ export const GET = async (req: NextRequest) => {
           total_response_time: 0,
           error_count: 0,
         };
-
         overallStats[provider].total_quotes += 1;
 
         const chainId = tradeChainById.get(r.trade_id)!;
@@ -218,7 +301,7 @@ export const GET = async (req: NextRequest) => {
         };
         perChainStats[chainId][provider].total_quotes += 1;
 
-        // track denominator: we count trades seen per chain regardless of success
+        // denominator: count trades seen per chain regardless of success
         (perChainTradesSeen[chainId] ??= new Set()).add(r.trade_id);
 
         if (r.output_amount && r.status_code === 200) {
@@ -238,7 +321,7 @@ export const GET = async (req: NextRequest) => {
         }
       }
 
-      // winners
+      // determine winners
       const overallWins = { ...overallStats };
       const chainWins: Record<string, Record<string, number>> = {};
 
@@ -247,24 +330,14 @@ export const GET = async (req: NextRequest) => {
 
         const winner = arr[0]?.provider;
 
-        // Winner only if the provider has better quote than second best provider (if 1st and 2nd has same - then no one wins)
-        if (arr.length > 1 && arr[0]?.output === arr[1]?.output) {
-          continue;
-        }
-
-        // If winner has no valid quote - we skip
-        if (!arr[0]?.output) {
-          continue;
-        }
-
-        if (!winner) {
-          continue;
-        }
+        // winner only if strictly greater than second best
+        if (arr.length > 1 && arr[0]?.output === arr[1]?.output) continue;
+        if (!arr[0]?.output) continue;
+        if (!winner) continue;
 
         overallWins[winner]!.wins += 1;
 
         const chainId = tradeChainById.get(Number(tradeIdStr))!;
-
         chainWins[chainId] ??= {};
         chainWins[chainId][winner] = (chainWins[chainId][winner] ?? 0) + 1;
       }
@@ -330,7 +403,7 @@ export const GET = async (req: NextRequest) => {
       }
 
       base = {
-        run_id: targetRunId!,
+        run_id: targetRunId,
         run_date: runDate,
         overall,
         total_trades_analyzed: totalTradesOverall,
@@ -343,7 +416,6 @@ export const GET = async (req: NextRequest) => {
 
     // representation for this request
     const reprTag = representationTag(baseTag, chain, mode);
-
     const ifNoneMatch = req.headers.get("if-none-match");
     if (ifNoneMatch && ifNoneMatch === reprTag) {
       return new NextResponse(null, {
@@ -356,7 +428,6 @@ export const GET = async (req: NextRequest) => {
     }
 
     if (mode === "full") {
-      // client-side filtering payload
       return NextResponse.json(base, {
         headers: {
           ETag: reprTag,

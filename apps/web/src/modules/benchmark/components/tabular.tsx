@@ -193,14 +193,14 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
               <thead>
                 <tr className="font-aeonik text-tertiary text-sm whitespace-nowrap">
                   <th className="px-5 py-4">
-                    <SortButton field="input_amount">Input Amount</SortButton>
+                    <SortButton field="input_amount">Token Amount</SortButton>
                   </th>
 
                   <th className="px-5 py-4">From Token</th>
                   <th className="px-5 py-4">To Token</th>
 
                   <th className="px-5 py-4">
-                    <SortButton field="amount">Input USD</SortButton>
+                    <SortButton field="amount">Token Amount USD</SortButton>
                   </th>
 
                   <th className="px-5 py-4">Chain</th>
@@ -376,6 +376,18 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                             ? maxRaw - secondBestRaw
                             : 0;
 
+                        let deltaPercentage = 0;
+
+                        if (
+                          showDeltaBadge &&
+                          secondBestRaw != null &&
+                          maxRaw != null &&
+                          secondBestRaw !== 0
+                        ) {
+                          deltaPercentage =
+                            ((maxRaw - secondBestRaw) / secondBestRaw) * 100;
+                        }
+
                         return (
                           <td
                             key={`${result.id}-${provider.id}-output`}
@@ -393,7 +405,18 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                                 {formatOutput(o)}
                               </span>
 
-                              {showDeltaBadge && deltaRaw > 0 ? (
+                              {showDeltaBadge && deltaPercentage > 0 ? (
+                                <span className="opacity-80 mt-0.5 tabular-nums text-[8px]">
+                                  {deltaPercentage > 0.001
+                                    ? `(+${deltaPercentage.toFixed(3)}%)`
+                                    : `(~0.001%)`}
+                                </span>
+                              ) : (
+                                <span className="opacity-0 mt-0.5 text-[8px] select-none">
+                                  (—)
+                                </span>
+                              )}
+                              {/* {showDeltaBadge && deltaRaw > 0 ? (
                                 <span className="opacity-80 mt-0.5 tabular-nums text-[8px]">
                                   (+{formatOutput(deltaRaw)})
                                 </span>
@@ -401,7 +424,7 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                                 <span className="opacity-0 mt-0.5 text-[8px] select-none">
                                   (—)
                                 </span>
-                              )}
+                              )} */}
                             </div>
                           </td>
                         );

@@ -18,6 +18,9 @@ getcontext().prec = 28
 # token-decimals mapping for quick lookup
 TOKEN_DECIMALS = {}
 
+# token price cache for quick lookup
+TOKEN_PRICE_CACHE = {}
+
 for chain_id, chain_config in CHAIN_CONFIG.items():
     norm_token = chain_config["normalization_token"]
     TOKEN_DECIMALS[norm_token["address"].lower()] = norm_token["decimals"]
@@ -63,6 +66,8 @@ def get_token_symbol_by_address(chain_id, token_address):
 def get_token_price_in_usd(chain_id, token_address):
     """Get token price in USD using the chain's normalization token (USD equivalent) via exchange rates API"""
 
+    start_time = time.time()
+
     chain_config = CHAIN_CONFIG.get(str(chain_id))
 
     if not chain_config:
@@ -70,6 +75,14 @@ def get_token_price_in_usd(chain_id, token_address):
         return None, 0
 
     blockchain_name = chain_config.get("blockchain")
+
+    cache_key = f"{blockchain_name.lower()}:{token_address.lower()}"
+
+    cached_price = TOKEN_PRICE_CACHE.get(cache_key)
+    if cached_price is not None:
+        elapsed_time = time.time() - start_time
+        print(f"🔁 DEBUG: Using cached price for {cache_key}: {cached_price}")
+        return cached_price, elapsed_time
 
     normalization_token = chain_config.get(
         "normalization_token", {}
@@ -100,8 +113,6 @@ def get_token_price_in_usd(chain_id, token_address):
             "foreign_token": usd_equivalent_token_address
         }
     ]
-
-    start_time = time.time()
 
     try:
         print(
@@ -147,13 +158,16 @@ def get_token_price_in_usd(chain_id, token_address):
                 # adjust price if there's a decimal difference
                 if decimal_adjustment != 1:
                     adjusted_price = price / decimal_adjustment
+                    TOKEN_PRICE_CACHE[cache_key] = adjusted_price
                     print(
                         f"🔧 DEBUG: Adjusted token price from {price} to {adjusted_price} due to decimal difference"
                     )
                     return adjusted_price, elapsed_time
 
                 print(f"💰 DEBUG: Final price: {price}")
+                TOKEN_PRICE_CACHE[cache_key] = price
                 return price, elapsed_time
+
             else:
                 print(
                     f"❌ DEBUG: Unexpected response format or no price data: {data}")

@@ -7,70 +7,71 @@ import { motion } from "framer-motion";
 
 interface ProvidersGridProps {
   providers: Provider[];
-  /** Optional retry handler to show a small CTA in empty state */
   onRetry?: () => void;
 }
 
-export const ProvidersGrid = memo<ProvidersGridProps>(({ providers, onRetry }) => {
-  const isEmpty = !providers || providers.length === 0;
+export const ProvidersGrid = memo<ProvidersGridProps>(
+  ({ providers, onRetry }) => {
+    const isEmpty = !providers || providers.length === 0;
 
-  const { topWinRateId, fastestId } = useMemo(() => {
-    let topWinRateId: string | null = null;
-    let bestWin = -Infinity;
-    let fastestId: string | null = null;
-    let bestTime = Infinity;
+    const { topWinRateId, fastestId } = useMemo(() => {
+      let topWinRateId: string | null = null;
+      let bestWin = -Infinity;
+      let fastestId: string | null = null;
+      let bestTime = Infinity;
 
-    for (const p of providers ?? []) {
-      if (Number.isFinite(p.winRate) && p.winRate > bestWin) {
-        bestWin = p.winRate;
-        topWinRateId = p.id;
+      for (const p of providers ?? []) {
+        if (Number.isFinite(p.winRate) && p.winRate > bestWin) {
+          bestWin = p.winRate;
+          topWinRateId = p.id;
+        }
+        if (Number.isFinite(p.avgResponse) && p.avgResponse < bestTime) {
+          bestTime = p.avgResponse;
+          fastestId = p.id;
+        }
       }
-      if (Number.isFinite(p.avgResponse) && p.avgResponse < bestTime) {
-        bestTime = p.avgResponse;
-        fastestId = p.id;
-      }
-    }
-    return { topWinRateId, fastestId };
-  }, [providers]);
+      return { topWinRateId, fastestId };
+    }, [providers]);
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 0.3 }}
-      className="mb-12"
-    >
-      <div className="bg-gradient-to-br from-gradient-verde-from to-gradient-verde-to p-2.5 rounded-xl">
-        {isEmpty ? (
-          <EmptyProvidersState onRetry={onRetry} />
-        ) : (
-          <div
-            className={clsx(
-              "gap-2.5 grid grid-cols-6",
-              "[&>.provider-card]:col-span-6",
-              "sm:[&>.provider-card]:col-span-3",
-              "lg:[&>.provider-card]:col-span-2",
-              "sm:[&>.provider-card:last-child:nth-child(2n+1)]:col-span-6",
-              "lg:[&>.provider-card:nth-last-child(2):nth-child(3n+1)]:col-span-3",
-              "lg:[&>.provider-card:last-child:nth-child(3n+2)]:col-span-3",
-              "lg:[&>.provider-card:last-child:nth-child(3n+1)]:col-span-6"
-            )}
-          >
-            {providers.map((provider, index) => (
-              <ProviderCard
-                key={provider.id}
-                provider={provider}
-                index={index}
-                isTopWin={provider.id === topWinRateId}
-                isFastest={provider.id === fastestId}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-});
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="mb-12"
+      >
+        <div className="bg-gradient-to-br from-gradient-verde-from to-gradient-verde-to p-2.5 rounded-xl">
+          {isEmpty ? (
+            <EmptyProvidersState onRetry={onRetry} />
+          ) : (
+            <div
+              className={clsx(
+                "gap-2.5 grid grid-cols-6",
+                "[&>.provider-card]:col-span-6",
+                "sm:[&>.provider-card]:col-span-3",
+                "lg:[&>.provider-card]:col-span-2",
+                "sm:[&>.provider-card:last-child:nth-child(2n+1)]:col-span-6",
+                "lg:[&>.provider-card:nth-last-child(2):nth-child(3n+1)]:col-span-3",
+                "lg:[&>.provider-card:last-child:nth-child(3n+2)]:col-span-3",
+                "lg:[&>.provider-card:last-child:nth-child(3n+1)]:col-span-6"
+              )}
+            >
+              {providers.map((provider, index) => (
+                <ProviderCard
+                  key={provider.id}
+                  provider={provider}
+                  index={index}
+                  isTopWin={provider.id === topWinRateId}
+                  isFastest={provider.id === fastestId}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+);
 
 ProvidersGrid.displayName = "ProvidersGrid";
 
@@ -179,8 +180,6 @@ export const ProviderCard = memo<ProviderCardProps>(
 );
 
 ProviderCard.displayName = "ProviderCard";
-
-/* --------------------------- Empty State (no data) --------------------------- */
 
 const EmptyProvidersState = ({ onRetry }: { onRetry?: () => void }) => {
   return (

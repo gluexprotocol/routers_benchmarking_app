@@ -192,32 +192,35 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
             <table className="bg-background-secondary rounded-xl w-full">
               <thead>
                 <tr className="font-aeonik text-tertiary text-sm whitespace-nowrap">
-                  <th className="px-5 py-4">
+                  <th className="px-5 py-4 text-left">
                     <SortButton field="input_amount">Token Amount</SortButton>
                   </th>
-
-                  <th className="px-5 py-4">From Token</th>
-                  <th className="px-5 py-4">To Token</th>
-
-                  <th className="px-5 py-4">
+                  <th className="px-5 py-4 text-left">From Token</th>
+                  <th className="px-5 py-4 text-left">To Token</th>
+                  <th className="px-5 py-4 text-left">
                     <SortButton field="amount">Token Amount USD</SortButton>
                   </th>
-
-                  <th className="px-5 py-4">Chain</th>
+                  <th className="px-5 py-4 text-left">Chain</th>
 
                   {providers.map((provider) => (
-                    <th key={`${provider.id}-time`} className="px-5 py-4">
+                    <th
+                      key={`${provider.id}-output`}
+                      className="px-5 py-4 text-left"
+                    >
+                      {provider.name} Quote
+                    </th>
+                  ))}
+
+                  {providers.map((provider) => (
+                    <th
+                      key={`${provider.id}-time`}
+                      className="px-5 py-4 text-left"
+                    >
                       {provider.name} Time
                     </th>
                   ))}
 
-                  {providers.map((provider) => (
-                    <th key={`${provider.id}-output`} className="px-5 py-4">
-                      {provider.name} Output
-                    </th>
-                  ))}
-
-                  <th className="px-5 py-4">
+                  <th className="px-5 py-4 text-left">
                     <SortButton field="winner">Winner</SortButton>
                   </th>
                 </tr>
@@ -281,11 +284,11 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                       onClick={() => openModal(result)}
                       title={result.tradingPair}
                     >
-                      <td className="px-5 py-2.5 text-primary/80 text-center">
+                      <td className="px-5 py-2.5 text-primary/80 text-left">
                         {formatOutput(Number(result.input_amount ?? 0))}
                       </td>
 
-                      <td className="px-5 py-2.5 font-medium text-primary/90 text-center">
+                      <td className="px-5 py-2.5 font-medium text-primary/90 text-left">
                         <span
                           className="inline-block max-w-[14ch] truncate"
                           title={result.fromToken}
@@ -294,7 +297,7 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                         </span>
                       </td>
 
-                      <td className="px-5 py-2.5 font-medium text-primary/90 text-center">
+                      <td className="px-5 py-2.5 font-medium text-primary/90 text-left">
                         <span
                           className="inline-block max-w-[14ch] truncate"
                           title={result.toToken}
@@ -303,46 +306,16 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                         </span>
                       </td>
 
-                      <td className="px-5 py-2.5 text-primary/80 text-center">
+                      <td className="px-5 py-2.5 text-primary/80 text-left">
                         {fmtMoney.format(Number(result.amount || 0))}
                       </td>
 
-                      <td className="px-5 py-2.5 text-primary/80 text-center">
+                      <td className="px-5 py-2.5 text-primary/80 text-left">
                         {CHAINS.find((c) => c.id === result.chain)?.name ||
                           "Unknown"}
                       </td>
 
-                      {/* Times */}
-                      {providers.map((provider) => {
-                        const t = result.providers[provider.key]?.time ?? null;
-                        const isUniqueFastest =
-                          numFastest === 1 &&
-                          minTime != null &&
-                          t != null &&
-                          Math.abs(t - minTime) < EPS;
-
-                        const isSlow = typeof t === "number" && t > 6;
-
-                        const timeClass =
-                          t == null
-                            ? "text-xs"
-                            : isUniqueFastest
-                            ? "text-[#01CF7A]"
-                            : isSlow
-                            ? "text-[#EF4444]"
-                            : "";
-
-                        return (
-                          <td
-                            key={`${result.id}-${provider.id}-time`}
-                            className={`px-5 py-2.5 text-center ${timeClass}`}
-                            title={t == null ? "No quote" : `${t.toFixed(3)}s`}
-                          >
-                            {formatTime(t)}
-                          </td>
-                        );
-                      })}
-
+                      {/* Amount */}
                       {providers.map((provider) => {
                         const o =
                           result.providers[provider.key]?.output ?? null;
@@ -391,7 +364,7 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                         return (
                           <td
                             key={`${result.id}-${provider.id}-output`}
-                            className={`px-5 py-2.5 text-center ${outClass}`}
+                            className={`px-5 py-2.5 text-left ${outClass}`}
                             title={
                               o == null
                                 ? "No quote"
@@ -400,13 +373,13 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                                   })
                             }
                           >
-                            <div className="flex flex-col items-center leading-tight">
+                            <div className="flex flex-col items-left leading-tight">
                               <span className="tabular-nums">
                                 {formatOutput(o)}
                               </span>
 
                               {showDeltaBadge && deltaPercentage > 0 ? (
-                                <span className="opacity-80 mt-0.5 tabular-nums text-[8px]">
+                                <span className="opacity-80 mt-0.5 tabular-nums text-[10px]">
                                   {deltaPercentage > 0.001
                                     ? `(+${deltaPercentage.toFixed(3)}%)`
                                     : `(~0.001%)`}
@@ -426,6 +399,37 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                                 </span>
                               )} */}
                             </div>
+                          </td>
+                        );
+                      })}
+
+                      {/* Times */}
+                      {providers.map((provider) => {
+                        const t = result.providers[provider.key]?.time ?? null;
+                        const isUniqueFastest =
+                          numFastest === 1 &&
+                          minTime != null &&
+                          t != null &&
+                          Math.abs(t - minTime) < EPS;
+
+                        const isSlow = typeof t === "number" && t > 6;
+
+                        const timeClass =
+                          t == null
+                            ? "text-xs"
+                            : isUniqueFastest
+                            ? "text-[#01CF7A]"
+                            : isSlow
+                            ? "text-[#EF4444]"
+                            : "";
+
+                        return (
+                          <td
+                            key={`${result.id}-${provider.id}-time`}
+                            className={`px-5 py-2.5 text-left ${timeClass}`}
+                            title={t == null ? "No quote" : `${t.toFixed(3)}s`}
+                          >
+                            {formatTime(t)}
                           </td>
                         );
                       })}

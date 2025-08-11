@@ -223,25 +223,19 @@ def generate_pairs_for_chain(chain_id):
 
     pairs = []
 
-    # create pairs: trading_token -> normalization_token
-    for token in trading_tokens:
-        pair_name = f"{token['symbol']}->{normalization_token['symbol']}"
-        pairs.append({
-            "name": pair_name,
-            "input_token_address": token["address"],
-            "output_token_address": normalization_token["address"]
-        })
-        print(f"➡️  DEBUG: Created pair: {pair_name}")
-
-    # create pairs: normalization_token -> trading_token
-    for token in trading_tokens:
-        pair_name = f"{normalization_token['symbol']}->{token['symbol']}"
-        pairs.append({
-            "name": pair_name,
-            "input_token_address": normalization_token["address"],
-            "output_token_address": token["address"]
-        })
-        print(f"⬅️  DEBUG: Created pair: {pair_name}")
+    # create pairs: trading_token -> trading_token
+    for i, token_in in enumerate(trading_tokens):
+        for j, token_out in enumerate(trading_tokens):
+            if i == j:
+                # skip self pair
+                continue
+            pair_name = f"{token_in['symbol']}->{token_out['symbol']}"
+            pairs.append({
+                "name": pair_name,
+                "input_token_address": token_in["address"],
+                "output_token_address": token_out["address"]
+            })
+            print(f"🔁 DEBUG: Created pair: {pair_name}")
 
     print(f"✅ DEBUG: Generated {len(pairs)} pairs total")
     return pairs

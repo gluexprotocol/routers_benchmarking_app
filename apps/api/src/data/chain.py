@@ -81,6 +81,11 @@ CHAIN_CONFIG = {
                 "symbol": "USDHL",
                 "decimals": 6
             },
+            {
+                "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",  # USDe
+                "symbol": "USDe",
+                "decimals": 18
+            }
         ]
     },
 }

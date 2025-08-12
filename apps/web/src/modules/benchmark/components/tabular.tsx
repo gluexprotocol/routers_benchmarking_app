@@ -1,10 +1,18 @@
 "use client";
 
-import { memo, useState, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { TradeDetailsModal } from "./summary";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+} from "lucide-react";
+
 import { CHAINS } from "~/data/chains";
+import { TradeDetailsModal } from "./summary";
 
 interface DetailedResultsTableProps {
   tradeResults: TradeResult[];
@@ -19,7 +27,6 @@ type SortField =
   | "amount"
   | "winner"
   | "outputDiff";
-
 type SortDirection = "asc" | "desc";
 
 const fmtMoney = new Intl.NumberFormat(undefined, {
@@ -28,48 +35,50 @@ const fmtMoney = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 2,
   currencyDisplay: "narrowSymbol",
 });
-
 const fmtNum0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
 
+/** Build a compact page list like: [1, '…', 4, 5, 6, 7, 8, '…', 20] */
+function getPageItems(page: number, totalPages: number, maxLength = 9) {
+  if (totalPages <= maxLength) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const left = Math.max(2, page - 2);
+  const right = Math.min(totalPages - 1, page + 2);
+
+  const items: (number | "…")[] = [1];
+  if (left > 2) items.push("…");
+  for (let p = left; p <= right; p++) items.push(p);
+  if (right < totalPages - 1) items.push("…");
+  items.push(totalPages);
+  return items;
+}
+
 export const DetailedResultsTable = memo<DetailedResultsTableProps>(
-  ({ tradeResults, providers, onRetry, selectedChain }) => {
+  ({ tradeResults, providers, onRetry }) => {
     const [sortField, setSortField] = useState<SortField>("amount");
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
+
+    // dropdown filters
+    const [fromSel, setFromSel] = useState<string>("");
+    const [toSel, setToSel] = useState<string>("");
+    const [minUsdSel, setMinUsdSel] = useState<string>("");
+    const [maxUsdSel, setMaxUsdSel] = useState<string>("");
+    const [winnerSel, setWinnerSel] = useState<string>("");
 
     const [selected, setSelected] = useState<TradeResult | null>(null);
     const [open, setOpen] = useState(false);
 
-    const hasRows = tradeResults && tradeResults.length > 0;
-    const hasProviders = providers && providers.length > 0;
+    const hasRows = Array.isArray(tradeResults) && tradeResults.length > 0;
+    const hasProviders = Array.isArray(providers) && providers.length > 0;
 
     const openModal = (row: TradeResult) => {
       setSelected(row);
       setOpen(true);
     };
     const closeModal = () => setOpen(false);
-
-    const sortedResults = useMemo(() => {
-      if (!hasRows) return [];
-      return [...tradeResults].sort((a, b) => {
-        let aValue: any = a[sortField];
-        let bValue: any = b[sortField];
-
-        if (sortField === "amount") {
-          aValue = Number(aValue);
-          bValue = Number(bValue);
-        } else if (sortField === "outputDiff") {
-          aValue = a.outputDiff ?? -Infinity;
-          bValue = b.outputDiff ?? -Infinity;
-        } else if (sortField === "tradingPair" || sortField === "winner") {
-          aValue = String(aValue ?? "");
-          bValue = String(bValue ?? "");
-        }
-
-        if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
-        if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
-        return 0;
-      });
-    }, [hasRows, tradeResults, sortField, sortDirection]);
 
     const handleSort = (field: SortField) => {
       if (sortField === field) {
@@ -119,13 +128,180 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
       return fmtNum0.format(v);
     };
 
-    const displayResolution = (v: number) => {
-      const av = Math.abs(v);
-      if (av > 0 && av < 1e-6) return 1e-6;
-      if (av < 1) return 1e-6; // 6 dp
-      if (av < 1_000) return 1e-2; // 2 dp
-      return 1e-4; // up to 4 dp
-    };
+    /* ----------------------------- context-aware options ---------------------------- */
+    const fromTokenOptions = useMemo(() => {
+      if (!hasRows) return [] as string[];
+      const s = new Set<string>();
+      for (const r of tradeResults) {
+        if (toSel && String(r.toToken ?? "") !== toSel) continue;
+        if (winnerSel && String(r.winner ?? "") !== winnerSel) continue;
+        if (r.fromToken) s.add(String(r.fromToken));
+      }
+      return Array.from(s).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+      );
+    }, [hasRows, tradeResults, toSel, winnerSel]);
+
+    const toTokenOptions = useMemo(() => {
+      if (!hasRows) return [] as string[];
+      const s = new Set<string>();
+      for (const r of tradeResults) {
+        if (fromSel && String(r.fromToken ?? "") !== fromSel) continue;
+        if (winnerSel && String(r.winner ?? "") !== winnerSel) continue;
+        if (r.toToken) s.add(String(r.toToken));
+      }
+      return Array.from(s).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+      );
+    }, [hasRows, tradeResults, fromSel, winnerSel]);
+
+    const usdAmountOptions = useMemo(() => {
+      if (!hasRows) return [] as number[];
+      const s = new Set<number>();
+      for (const r of tradeResults) {
+        if (fromSel && String(r.fromToken ?? "") !== fromSel) continue;
+        if (toSel && String(r.toToken ?? "") !== toSel) continue;
+        if (winnerSel && String(r.winner ?? "") !== winnerSel) continue;
+
+        const raw = (r as any).amount;
+        const n =
+          typeof raw === "number"
+            ? raw
+            : Number(String(raw).replace(/[^0-9.+-eE]/g, ""));
+        if (Number.isFinite(n)) s.add(n);
+      }
+      return Array.from(s).sort((a, b) => a - b);
+    }, [hasRows, tradeResults, fromSel, toSel, winnerSel]);
+
+    const winnerOptions = useMemo(() => {
+      if (!hasRows) return [] as string[];
+      const s = new Set<string>();
+      for (const r of tradeResults) {
+        if (fromSel && String(r.fromToken ?? "") !== fromSel) continue;
+        if (toSel && String(r.toToken ?? "") !== toSel) continue;
+        const w = String(r.winner ?? "");
+        if (w) s.add(w);
+      }
+      const arr = Array.from(s);
+      const top = arr.filter((w) => w === "GlueX" || w === "All Error");
+      const rest = arr.filter((w) => w !== "GlueX" && w !== "All Error");
+      rest.sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+      );
+      return [...top, ...rest];
+    }, [hasRows, tradeResults, fromSel, toSel]);
+
+    /* ------------------------------ filtering ------------------------------ */
+    const minUsdNum = useMemo(() => {
+      if (minUsdSel === "") return null;
+      const n = Number(minUsdSel);
+      return Number.isFinite(n) ? n : null;
+    }, [minUsdSel]);
+
+    const maxUsdNum = useMemo(() => {
+      if (maxUsdSel === "") return null;
+      const n = Number(maxUsdSel);
+      return Number.isFinite(n) ? n : null;
+    }, [maxUsdSel]);
+
+    // guard against min > max by swapping in-place
+    const [minBound, maxBound] = useMemo<[number | null, number | null]>(() => {
+      if (
+        minUsdNum != null &&
+        maxUsdNum != null &&
+        Number.isFinite(minUsdNum) &&
+        Number.isFinite(maxUsdNum) &&
+        minUsdNum > maxUsdNum
+      ) {
+        return [maxUsdNum, minUsdNum];
+      }
+      return [minUsdNum, maxUsdNum];
+    }, [minUsdNum, maxUsdNum]);
+
+    const filteredResults = useMemo(() => {
+      if (!hasRows) return [];
+      return tradeResults.filter((r) => {
+        const fromOk = fromSel ? String(r.fromToken ?? "") === fromSel : true;
+        const toOk = toSel ? String(r.toToken ?? "") === toSel : true;
+        const winnerOk = winnerSel
+          ? String(r.winner ?? "") === winnerSel
+          : true;
+
+        const rawAmt = (r as any).amount;
+        const amt =
+          typeof rawAmt === "number"
+            ? rawAmt
+            : Number(String(rawAmt).replace(/[^0-9.+-eE]/g, ""));
+
+        const minOk =
+          minBound == null ? true : Number.isFinite(amt) && amt >= minBound;
+        const maxOk =
+          maxBound == null ? true : Number.isFinite(amt) && amt <= maxBound;
+
+        return fromOk && toOk && winnerOk && minOk && maxOk;
+      });
+    }, [hasRows, tradeResults, fromSel, toSel, winnerSel, minBound, maxBound]);
+
+    const hasActiveFilters =
+      !!fromSel || !!toSel || !!winnerSel || !!minUsdSel || !!maxUsdSel;
+
+    /* ------------------------------- sorting ------------------------------- */
+    const sortedResults = useMemo(() => {
+      if (!filteredResults.length) return [];
+      return [...filteredResults].sort((a, b) => {
+        let aValue: any = a[sortField];
+        let bValue: any = b[sortField];
+
+        if (sortField === "amount") {
+          aValue = Number(aValue);
+          bValue = Number(bValue);
+        } else if (sortField === "outputDiff") {
+          aValue = a.outputDiff ?? -Infinity;
+          bValue = b.outputDiff ?? -Infinity;
+        } else if (sortField === "tradingPair" || sortField === "winner") {
+          aValue = String(aValue ?? "");
+          bValue = String(bValue ?? "");
+        }
+
+        if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+        if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }, [filteredResults, sortField, sortDirection]);
+
+    /* ----------------------------- pagination ----------------------------- */
+    const total = sortedResults.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    useEffect(() => {
+      setPage(1);
+    }, [
+      fromSel,
+      toSel,
+      winnerSel,
+      minBound,
+      maxBound,
+      sortField,
+      sortDirection,
+      pageSize,
+    ]);
+
+    const startIdx = (page - 1) * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, total);
+    const visibleResults = useMemo(
+      () => sortedResults.slice(startIdx, endIdx),
+      [sortedResults, startIdx, endIdx]
+    );
+
+    const resetFilters = useCallback(() => {
+      setFromSel("");
+      setToSel("");
+      setWinnerSel("");
+      setMinUsdSel("");
+      setMaxUsdSel("");
+    }, []);
+
+    /* --------------------------------- UI --------------------------------- */
 
     if (!hasRows || !hasProviders) {
       return (
@@ -188,6 +364,192 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
             </p>
           </div>
 
+          <div className="bg-background-secondary/60 mb-3 p-4 border border-border-secondary rounded-xl">
+            <div className="items-end gap-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+              {/* From token */}
+              <label className="flex flex-col gap-1">
+                <span className="text-tertiary text-xs">From Token</span>
+                <select
+                  value={fromSel}
+                  onChange={(e) => setFromSel(e.target.value)}
+                  className="bg-background-secondary px-3 py-2 border focus:border-primary/60 border-border-secondary rounded-md outline-none text-sm"
+                >
+                  <option value="">All</option>
+                  {fromTokenOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {/* To token */}
+              <label className="flex flex-col gap-1">
+                <span className="text-tertiary text-xs">To Token</span>
+                <select
+                  value={toSel}
+                  onChange={(e) => setToSel(e.target.value)}
+                  className="bg-background-secondary px-3 py-2 border focus:border-primary/60 border-border-secondary rounded-md outline-none text-sm"
+                >
+                  <option value="">All</option>
+                  {toTokenOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {/* Winner */}
+              <label className="flex flex-col gap-1">
+                <span className="text-tertiary text-xs">Winner</span>
+                <select
+                  value={winnerSel}
+                  onChange={(e) => setWinnerSel(e.target.value)}
+                  className="bg-background-secondary px-3 py-2 border focus:border-primary/60 border-border-secondary rounded-md outline-none text-sm"
+                >
+                  <option value="">All</option>
+                  {winnerOptions.map((w) => (
+                    <option key={w} value={w}>
+                      {w}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {/* Min USD */}
+              <label className="flex flex-col gap-1">
+                <span className="text-tertiary text-xs">Min USD</span>
+                <select
+                  value={minUsdSel}
+                  onChange={(e) => setMinUsdSel(e.target.value)}
+                  className="bg-background-secondary px-3 py-2 border focus:border-primary/60 border-border-secondary rounded-md outline-none text-sm"
+                >
+                  <option value="">Any</option>
+                  {usdAmountOptions.map((n) => (
+                    <option key={`min-${n}`} value={String(n)}>
+                      {fmtMoney.format(n)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {/* Max USD */}
+              <label className="flex flex-col gap-1">
+                <span className="text-tertiary text-xs">Max USD</span>
+                <select
+                  value={maxUsdSel}
+                  onChange={(e) => setMaxUsdSel(e.target.value)}
+                  className="bg-background-secondary px-3 py-2 border focus:border-primary/60 border-border-secondary rounded-md outline-none text-sm"
+                >
+                  <option value="">Any</option>
+                  {usdAmountOptions.map((n) => (
+                    <option key={`max-${n}`} value={String(n)}>
+                      {fmtMoney.format(n)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {/* Active filter chips */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {fromSel && (
+                <button
+                  onClick={() => setFromSel("")}
+                  className="px-2 py-1 border border-border-secondary rounded-full text-xs"
+                >
+                  From: {fromSel} ✕
+                </button>
+              )}
+              {toSel && (
+                <button
+                  onClick={() => setToSel("")}
+                  className="px-2 py-1 border border-border-secondary rounded-full text-xs"
+                >
+                  To: {toSel} ✕
+                </button>
+              )}
+              {winnerSel && (
+                <button
+                  onClick={() => setWinnerSel("")}
+                  className="px-2 py-1 border border-border-secondary rounded-full text-xs"
+                >
+                  Winner: {winnerSel} ✕
+                </button>
+              )}
+              {minUsdSel && (
+                <button
+                  onClick={() => setMinUsdSel("")}
+                  className="px-2 py-1 border border-border-secondary rounded-full text-xs"
+                >
+                  Min: {fmtMoney.format(Number(minUsdSel))} ✕
+                </button>
+              )}
+              {maxUsdSel && (
+                <button
+                  onClick={() => setMaxUsdSel("")}
+                  className="px-2 py-1 border border-border-secondary rounded-full text-xs"
+                >
+                  Max: {fmtMoney.format(Number(maxUsdSel))} ✕
+                </button>
+              )}
+              <button
+                onClick={resetFilters}
+                className="ml-1 px-2 py-1 border border-border-secondary rounded-full text-xs"
+                title="Clear all"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-tertiary text-sm">
+              Showing{" "}
+              <span className="text-primary">{total ? startIdx + 1 : 0}</span>–
+              <span className="text-primary">{endIdx}</span> of{" "}
+              <span className="text-primary">{total}</span>
+              {hasActiveFilters && (
+                <> (filtered from {tradeResults.length} total)</>
+              )}
+            </p>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={page === 1}
+                  className="hover:bg-background-secondary disabled:opacity-50 p-2 border border-border-secondary rounded-lg transition-colors disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <span className="px-2 text-tertiary text-sm">
+                  Page {page} of {totalPages}
+                </span>
+
+                <button
+                  onClick={() =>
+                    setPage((prev) => Math.min(totalPages, prev + 1))
+                  }
+                  disabled={page === totalPages}
+                  className="hover:bg-background-secondary disabled:opacity-50 p-2 border border-border-secondary rounded-lg transition-colors disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="inline-flex items-center gap-1 hover:bg-background-secondary px-3 py-2 border border-border-secondary rounded-md text-xs transition-colors"
+                  title="Reset filters"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="overflow-x-auto no-scrollbar">
             <table className="bg-background-secondary rounded-xl w-full">
               <thead>
@@ -227,8 +589,7 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
               </thead>
 
               <tbody className="text-tertiary text-sm">
-                {sortedResults.map((result, index) => {
-                  // Times (best = lowest), unique best only
+                {visibleResults.map((result, index) => {
                   const EPS = 1e-12;
 
                   const timesRaw = providers
@@ -246,7 +607,6 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                       : timesRaw.filter((t) => Math.abs(t - minTime) < EPS)
                           .length;
 
-                  // RAW outputs (best = highest), with epsilon tolerance
                   const outputsRawAll = providers.map(
                     (p) => result.providers[p.key]?.output ?? null
                   );
@@ -257,14 +617,12 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                   const maxRaw = outputsRaw.length
                     ? Math.max(...outputsRaw)
                     : null;
-
                   const numTopRaw =
                     maxRaw == null
                       ? 0
                       : outputsRaw.filter((v) => Math.abs(v - maxRaw) < EPS)
                           .length;
 
-                  // second best raw (for +Δ)
                   let secondBestRaw: number | undefined;
                   if (outputsRaw.length >= 2) {
                     const sortedRaw = [...outputsRaw].sort((a, b) => b - a);
@@ -315,7 +673,6 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                           "Unknown"}
                       </td>
 
-                      {/* Amount */}
                       {providers.map((provider) => {
                         const o =
                           result.providers[provider.key]?.output ?? null;
@@ -343,14 +700,7 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                           isUniqueRawBest &&
                           secondBestRaw != null &&
                           maxRaw != null;
-
-                        const deltaRaw =
-                          showDeltaBadge && secondBestRaw != null
-                            ? maxRaw - secondBestRaw
-                            : 0;
-
                         let deltaPercentage = 0;
-
                         if (
                           showDeltaBadge &&
                           secondBestRaw != null &&
@@ -389,21 +739,11 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                                   (—)
                                 </span>
                               )}
-                              {/* {showDeltaBadge && deltaRaw > 0 ? (
-                                <span className="opacity-80 mt-0.5 tabular-nums text-[8px]">
-                                  (+{formatOutput(deltaRaw)})
-                                </span>
-                              ) : (
-                                <span className="opacity-0 mt-0.5 text-[8px] select-none">
-                                  (—)
-                                </span>
-                              )} */}
                             </div>
                           </td>
                         );
                       })}
 
-                      {/* Times */}
                       {providers.map((provider) => {
                         const t = result.providers[provider.key]?.time ?? null;
                         const isUniqueFastest =
@@ -434,9 +774,8 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                         );
                       })}
 
-                      {/* Winner chip — only if single RAW winner */}
                       <td className="px-6 py-2.5">
-                        {result.winner === "All Error" || numTopRaw !== 1 ? (
+                        {result.winner === "All Error" ? (
                           <></>
                         ) : result.winner === "GlueX" ? (
                           <span className="px-2 py-1 border border-green-tertiary rounded-xl font-medium text-green-primary text-xs">
@@ -454,6 +793,100 @@ export const DetailedResultsTable = memo<DetailedResultsTableProps>(
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Bottom Pagination */}
+          <div className="flex sm:flex-row flex-col sm:justify-between sm:items-center gap-3 mt-3 text-sm">
+            <div className="text-tertiary">
+              {total > 0 ? (
+                <>
+                  Showing{" "}
+                  <span className="font-medium text-primary">
+                    {startIdx + 1}
+                  </span>
+                  –<span className="font-medium text-primary">{endIdx}</span> of{" "}
+                  <span className="font-medium text-primary">{total}</span>
+                </>
+              ) : (
+                <>—</>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Rows / page */}
+              <label className="flex items-center gap-2">
+                <span className="text-tertiary text-xs">Rows / page</span>
+                <div className="relative">
+                  <select
+                    className="bg-background-secondary py-1.5 pr-8 pl-2 border focus:border-primary/60 border-border-secondary rounded-md outline-none text-sm appearance-none"
+                    value={pageSize}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      setPageSize(n);
+                      setPage(1);
+                    }}
+                    aria-label="Rows per page"
+                    title="Rows per page"
+                  >
+                    {[10, 25, 50, 100].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="top-1/2 right-2 absolute opacity-60 -translate-y-1/2 pointer-events-none">
+                    <ArrowDown className="w-4 h-4" />
+                  </span>
+                </div>
+              </label>
+
+              {/* Numbered pagination */}
+              <div className="flex items-center gap-1">
+                <button
+                  className="hover:bg-background-secondary disabled:opacity-50 px-2 py-1.5 border border-border-secondary rounded-md transition-colors"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  aria-label="Previous page"
+                  title="Previous page"
+                >
+                  Prev
+                </button>
+
+                {getPageItems(page, totalPages).map((item, i) =>
+                  item === "…" ? (
+                    <span key={`ellipsis-${i}`} className="px-2 select-none">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      onClick={() => setPage(item as number)}
+                      className={
+                        "min-w-8 h-8 px-2 rounded-md border transition-colors " +
+                        (item === page
+                          ? "border-primary/60 text-primary bg-background-secondary"
+                          : "border-border-secondary hover:bg-background-secondary")
+                      }
+                      aria-current={item === page ? "page" : undefined}
+                      aria-label={`Go to page ${item}`}
+                      title={`Page ${item}`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+
+                <button
+                  className="hover:bg-background-secondary disabled:opacity-50 px-2 py-1.5 border border-border-secondary rounded-md transition-colors"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  aria-label="Next page"
+                  title="Next page"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         </motion.div>
       </>

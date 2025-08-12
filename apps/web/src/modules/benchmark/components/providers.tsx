@@ -21,12 +21,15 @@ export const ProvidersGrid = memo<ProvidersGridProps>(
   ({ providers, onRetry }) => {
     const isEmpty = !providers || providers.length === 0;
 
-    const { topWinRateId, fastestId } = useMemo(() => {
+    // AFTER (adds Lowest Failure Rate):
+    const { topWinRateId, fastestId, lowestFailureIds } = useMemo(() => {
       let topWinRateId: string | null = null;
       let bestWin = -Infinity;
       let fastestId: string | null = null;
       let bestTime = Infinity;
 
+      // compute failure rates
+      const rates = new Map<string, number>();
       for (const p of providers ?? []) {
         if (Number.isFinite(p.winRate) && p.winRate > bestWin) {
           bestWin = p.winRate;
@@ -36,8 +39,25 @@ export const ProvidersGrid = memo<ProvidersGridProps>(
           bestTime = p.avgResponse;
           fastestId = p.id;
         }
+
+        const errors = Number.isFinite(p.errors) ? p.errors : 0;
+        const quotes = Number.isFinite(p.totalQuotes) ? p.totalQuotes : 0;
+        const attempts = errors + quotes; // successful quotes + errors
+        const failureRate = attempts > 0 ? errors / attempts : Infinity;
+        rates.set(p.id, failureRate);
       }
-      return { topWinRateId, fastestId };
+
+      // pick all providers tied for the minimum failure rate
+      let minRate = Infinity;
+      for (const r of rates.values()) minRate = Math.min(minRate, r);
+      const EPS = 1e-9;
+      const lowestFailureIds = new Set<string>(
+        [...rates.entries()]
+          .filter(([, r]) => Math.abs(r - minRate) < EPS)
+          .map(([id]) => id)
+      );
+
+      return { topWinRateId, fastestId, lowestFailureIds };
     }, [providers]);
 
     return (
@@ -70,6 +90,7 @@ export const ProvidersGrid = memo<ProvidersGridProps>(
                   index={index}
                   isTopWin={provider.id === topWinRateId}
                   isFastest={provider.id === fastestId}
+                  isLowestFailure={lowestFailureIds.has(provider.id)}
                 />
               ))}
             </div>
@@ -87,13 +108,14 @@ interface ProviderCardProps {
   index: number;
   isTopWin?: boolean;
   isFastest?: boolean;
+  isLowestFailure?: boolean;
 }
 
 const pct = (v: number) => `${Number.isFinite(v) ? v.toFixed(2) : "0.00"}%`;
 const sec = (s: number) => (Number.isFinite(s) ? `${s.toFixed(2)}s` : "—");
 
 export const ProviderCard = memo<ProviderCardProps>(
-  ({ provider, index, isTopWin, isFastest }) => {
+  ({ provider, index, isTopWin, isFastest, isLowestFailure }) => {
     const winPct = Number.isFinite(provider.winRate) ? provider.winRate : 0;
     const partPct = Number.isFinite(provider.participation)
       ? provider.participation
@@ -141,9 +163,14 @@ export const ProviderCard = memo<ProviderCardProps>(
                   Fastest
                 </span>
               )}
-              <div className="opacity-80 hover:opacity-100 px-2.5 py-0.5 border border-green-primary rounded-full font-medium text-green-primary text-xs transition-all">
+              {isLowestFailure && (
+                <span className="hidden lg:block opacity-80 hover:opacity-100 px-2.5 py-0.5 border border-amber-300 rounded-full font-medium text-amber-300 text-xs transition-all">
+                  Lowest Failure Rate
+                </span>
+              )}
+              {/* <div className="opacity-80 hover:opacity-100 px-2.5 py-0.5 border border-green-primary rounded-full font-medium text-green-primary text-xs transition-all">
                 {provider.wins} wins
-              </div>
+              </div> */}
             </div>
           </div>
 

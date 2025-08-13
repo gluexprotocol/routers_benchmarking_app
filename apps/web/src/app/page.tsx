@@ -2,11 +2,12 @@ import React from "react";
 import { Metadata } from "next";
 
 import HomeView from "./view";
+import HomeSROnly from "~/components/seo/home-sr";
 
 export const metadata: Metadata = {
   title: "Aggregator Benchmarking | GlueX Protocol",
   description:
-    "Benchmarking DEX aggregators across EVM chains (arbitrum, avalanche, base, bnb, ethereum, gnosis, hyperevm, optimism, polygon, sonic, unichain) comparing providers such as GlueX, 1inch, Odos, Bebop, Velora, 0x, Li.Fi, Bungee, Jumper, Enso, and Liqdswap for best prices and fastest quotes",
+    "Find out who is the best DEX aggregator on the basis of quotes, speed and reliability. Benchmark top providers across EVM chains (arbitrum, avalanche, base, bnb, ethereum, gnosis, hyperevm, optimism, polygon, sonic, unichain) comparing providers such as GlueX, 1inch, Odos, Bebop, Velora, 0x, Li.Fi, Bungee, Jumper, Enso, and Liqdswap for best prices and fastest quotes",
   keywords: [
     "aggregator benchmarking",
     "DEX aggregator comparison",
@@ -46,6 +47,7 @@ export const metadata: Metadata = {
 const HomePage = () => {
   return (
     <>
+      <HomeSROnly />
       <HomeView />
     </>
   );

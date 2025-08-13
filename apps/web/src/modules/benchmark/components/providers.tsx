@@ -159,12 +159,12 @@ export const ProviderCard = memo<ProviderCardProps>(
                 </span>
               )}
               {isFastest && (
-                <span className="hidden lg:block opacity-80 hover:opacity-100 px-2.5 py-0.5 border border-blue-300 rounded-full font-medium text-blue-300 text-xs transition-all">
+                <span className="hidden lg:block opacity-80 hover:opacity-100 px-2.5 py-0.5 border border-emerald-400 rounded-full font-medium text-emerald-400 text-xs transition-all">
                   Fastest
                 </span>
               )}
               {isLowestFailure && (
-                <span className="hidden lg:block opacity-80 hover:opacity-100 px-2.5 py-0.5 border border-amber-300 rounded-full font-medium text-amber-300 text-xs transition-all">
+                <span className="hidden lg:block opacity-80 hover:opacity-100 px-2.5 py-0.5 border border-emerald-400 rounded-full font-medium text-emerald-400 text-xs transition-all">
                   Lowest Failure Rate
                 </span>
               )}

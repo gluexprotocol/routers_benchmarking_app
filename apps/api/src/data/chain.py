@@ -22,7 +22,7 @@ CHAIN_CONFIG = {
                 "decimals": 18
             },
             {
-                "address": "0x2222222222222222222222222222222222222222",  # HYPE
+                "address": "0x5555555555555555555555555555555555555555",  # WHYPE
                 "symbol": "HYPE",
                 "decimals": 18
             },

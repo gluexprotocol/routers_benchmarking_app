@@ -18,7 +18,7 @@ import { DetailedResultsTable } from "./tabular";
 import TitleCard from "./title";
 
 export const Dashboard = () => {
-  const [selectedChain, setSelectedChain] = useState("all");
+  const [selectedChain, setSelectedChain] = useState("9745");
   const { data, loading, error, refetch } = useBenchmarkData(selectedChain);
 
   const handleChainChange = useCallback((chainId: string) => {

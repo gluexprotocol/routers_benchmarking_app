@@ -45,5 +45,9 @@ jobs:
           # LiqdSwap plugin secrets
           LIQDSWAP_URL: ${{ secrets.LIQDSWAP_URL }}
 
+          # ZeroX plugin secrets
+          ZEROX_URL: ${{ secrets.ZEROX_URL }}
+          ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
+
         run: |
           poetry run benchmark-run

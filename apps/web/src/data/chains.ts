@@ -7,6 +7,13 @@ export const CHAINS = [
     logo: "https://raw.githubusercontent.com/gluexprotocol/tokens_registry/main/assets/chains/hyperevm.svg",
   },
   {
+    id: 9745,
+    isComingSoon: false,
+    identifier: "plasma",
+    name: "Plasma",
+    logo: "https://raw.githubusercontent.com/gluexprotocol/tokens_registry/main/assets/chains/plasma.svg",
+  },
+  {
     id: 1,
     isComingSoon: true,
     identifier: "ethereum",

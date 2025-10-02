@@ -12,6 +12,8 @@ export const getProviderIcon = (provider: string): string => {
       return "https://icons.llamao.fi/icons/protocols/gluex";
     case "liqdswap":
       return "https://icons.llamao.fi/icons/protocols/liquidswap-hl";
+    case "zerox":
+      return "https://icons.llamao.fi/icons/protocols/0x";
     default:
       return "https://placehold.co/400";
   }

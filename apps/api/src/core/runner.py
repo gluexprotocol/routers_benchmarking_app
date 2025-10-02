@@ -12,6 +12,7 @@ from ..models import BenchmarkRun, TradeResult, ProviderResult
 
 from ..providers.gluex import GluexProvider
 from ..providers.liqdswap import LiqdswapProvider
+from ..providers.zerox import ZeroxProvider
 
 getcontext().prec = 28
 
@@ -330,7 +331,8 @@ def run_benchmark_single_chain(chain_id: str, benchmark_run, db_session, pairs=N
     # available providers
     all_providers = [
         GluexProvider(),
-        LiqdswapProvider()
+        LiqdswapProvider(),
+        ZeroxProvider()
     ]
 
     # filter providers based on chain support

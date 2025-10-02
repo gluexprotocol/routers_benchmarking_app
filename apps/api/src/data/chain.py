@@ -88,4 +88,72 @@ CHAIN_CONFIG = {
             }
         ]
     },
+    # Plasma
+    "9745": {
+        "blockchain": "plasma",
+        
+        "normalization_token": {
+            "address": "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb",  # USDT0
+            "symbol": "USDT0",
+            "decimals": 6
+        },
+        
+        "trading_tokens": [
+            {
+                "address": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",  # XPL
+                "symbol": "XPL",
+                "decimals": 18
+            },
+            {
+                "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",  # USDe
+                "symbol": "USDe",
+                "decimals": 18
+            },
+            {
+                "address": "0x9895d81bb462a195b4922ed7de0e3acd007c32cb",  # WETH
+                "symbol": "WETH",
+                "decimals": 18
+            },
+            {
+                "address": "0x1B64B9025EEbb9A6239575dF9Ea4b9Ac46D4d193",  # XAUt0
+                "symbol": "XAUt0",
+                "decimals": 6
+            },
+            {
+                "address": "0xc4374775489cb9c56003bf2c9b12495fc64f0771",  # syrupUSDT
+                "symbol": "syrupUSDT",
+                "decimals": 6
+            },
+            {
+                "address": "0xA3D68b74bF0528fdD07263c60d6488749044914b",  # weETH
+                "symbol": "weETH",
+                "decimals": 18
+            },
+            {
+                "address": "0x0A1a1A107E45b7Ced86833863f482BC5f4ed82EF",  # USDai
+                "symbol": "USDai",
+                "decimals": 18
+            },
+            {
+                "address": "0x0B2b2B2076d95dda7817e785989fE353fe955ef9",  # sUSDai
+                "symbol": "sUSDai",
+                "decimals": 18
+            },
+            {
+                "address": "0x87e617C7484aDE79FcD90db58BEB82B057facb48",  # USDo
+                "symbol": "USDo",
+                "decimals": 18
+            },
+            {
+                "address": "0x6eAf19b2FC24552925dB245F9Ff613157a7dbb4C",  # XUSD
+                "symbol": "XUSD",
+                "decimals": 6
+            },
+            {
+                "address": "0x92A01Ab7317Ac318b39b00EB6704ba56F0245D7a",  # trillions
+                "symbol": "trillions",
+                "decimals": 18
+            }
+        ]
+    }
 }
